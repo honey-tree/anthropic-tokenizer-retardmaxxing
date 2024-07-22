@@ -31,5 +31,18 @@ for i := 0; i < len(to_tokenize); i++ {
   }
 }
 ```
-but eh, don't see it working either.
+but eh, don't see it working either for the same reason.
 
+## Take two
+
+So the next idea was the following:
+
+- set the output tokens back to a big number
+- initiate a prefill string var
+- set it to a [0:n] substring of the to_tokenize string we're repeating. If Haiku can complete it correctly, then to_tokenize[0:n] is presumably a correct tokenization, and otherwise it isn't (because haiku is stupid, so if the tokenization of the input is incorrect we can expect him to fail to correctly predict the tokens used on the user message). This way, we can progressively tokenize the string.
+
+Anyway this doesn't work either. Not because Haiku succeeds at completing the repetition task when he shouldn't and introduces additional tokens, but because he fails when he should succeed. "ahggihyiuhguh" is one token according to Haiku's text completion skills.
+
+Because Haiku is dumb as bricks. And maybe because Anthropic is ommiting things about how prefills work. One of those, probably.
+
+Also that bit in the code that continues when the new_token ends in a whitespace is there because of the API.
