@@ -16,26 +16,35 @@ async def get_tokens(client, to_tokenize: str, model=None) -> Tuple[list[str], i
     if model is None:
         model = "claude-3-haiku-20240307"
     tokens = []
-    async with client.messages.stream(
-        max_tokens=1000,
-        system=(
-            "Copy the text between <tocopy> markers. Include trailing spaces or breaklines."
-            " Do not write anything else. One example \nInput: <tocopy>Example"
-            " sentence.</tocopy>\nOutput: Example sentence."
-        ),
-        messages=[
-            {
-                "role": "user",
-                "content": f"<tocopy>{to_tokenize}</tocopy>",
-            }
-        ],
-        model=model,
-    ) as stream:
-        async for event in stream:
-            if event.type == "content_block_delta":
-                tokens.append(event.delta.text)
-            if event.type == "message_delta":
-                total_tokens_usage = event.usage.output_tokens
+    prefill = ""
+    total_tokens_usage = 0
+
+    while prefill != to_tokenize:
+        message = await client.messages.create(
+            max_tokens=1,
+            temperature=0,
+            system=(
+                    "Print out the exact text between the <print></print> tags, wrapped up in your own <print></print> tags."
+            ),
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"<print>{to_tokenize}</print>",
+                },
+                {
+                    "role": "assistant",
+                    "content": f"<print>{prefill}",
+                }
+            ],
+            model=model,
+        )
+
+        total_tokens_usage += message.usage.output_tokens
+        total_tokens_usage += message.usage.input_tokens
+
+        if len(message.content) > 0 and to_tokenize.startswith(prefill + message.content[0].text):
+            prefill += message.content[0].text
+            tokens.append(message.content[0].text)
 
     return tokens, total_tokens_usage
 
