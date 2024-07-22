@@ -9,42 +9,46 @@ from typing import Tuple
 
 
 async def get_tokens(client, to_tokenize: str, model=None) -> Tuple[list[str], int]:
-    """
-    Model defaults to haiku
-    test_tokenization.py showed they're the same, unless have unicode mixed with ascii
-    """
-    if model is None:
-        model = "claude-3-haiku-20240307"
+    model = "claude-3-haiku-20240307"
     tokens = []
     prefill = ""
     total_tokens_usage = 0
 
-    while prefill != to_tokenize:
-        message = await client.messages.create(
-            max_tokens=1,
-            temperature=0,
-            system=(
-                    "Print out the exact text between the <print></print> tags, wrapped up in your own <print></print> tags."
-            ),
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"<print>{to_tokenize}</print>",
-                },
-                {
-                    "role": "assistant",
-                    "content": f"<print>{prefill}",
-                }
-            ],
-            model=model,
-        )
+    while prefill != to_tokenize and len(prefill) < len(to_tokenize):
+        i = 0
+        while i < len(to_tokenize) - len(prefill):
+            i += 1
+            new_token = to_tokenize[len(prefill):len(prefill) + i]
 
-        total_tokens_usage += message.usage.output_tokens
-        total_tokens_usage += message.usage.input_tokens
+            if re.match(r'\s$', new_token):
+                continue
 
-        if len(message.content) > 0 and to_tokenize.startswith(prefill + message.content[0].text):
-            prefill += message.content[0].text
-            tokens.append(message.content[0].text)
+            message = await client.messages.create(
+                max_tokens=1024,
+                temperature=0,
+                system=(
+                        "Print out the exact text between the <print></print> tags, wrapped up in your own <print></print> tags."
+                ),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"<print>{to_tokenize}</print>",
+                    },
+                    {
+                        "role": "assistant",
+                        "content": f"<print>{prefill + new_token}",
+                    }
+                ],
+                model=model,
+            )
+
+            total_tokens_usage += message.usage.output_tokens
+            total_tokens_usage += message.usage.input_tokens
+
+            if len(message.content) > 0 and f"{to_tokenize}</print>" == prefill + new_token + message.content[0].text:
+                prefill += new_token
+                tokens.append(new_token)
+                break
 
     return tokens, total_tokens_usage
 
